@@ -1,0 +1,623 @@
+---
+title: "MATH6166/6173 -- Coursework 1 Answer Sheet"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include = FALSE, purl = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align='center')
+```
+
+
+## Question 1
+
+### Part (a)
+
+<!-- Write your code for Q1 (a) in the code chunk below: -->
+
+
+
+```{r Q1a}
+#read csv file
+house_data <- read.csv(file = "/Users/zheguan/DDA/R/Coursework/melbourne_house_price.csv",header = TRUE, sep = ",")
+#we can use View(house_data) to show the structure of original data set
+class(house_data)
+#here we apply unique function to avoid duplicate in the uncleaned data set.
+more4_rooms <- length(unique(house_data$Address[house_data$Rooms > 4]))
+
+more4_rooms
+```
+
+<!-- Report your answer for Q1 (a) below: -->
+
+There are 30 unique properties available with more than 4 bedrooms.
+
+
+### Part (b)
+
+<!-- Write your code for Q1 (b) in the code chunk below: -->
+
+
+```{r Q1b}
+#convert format
+house_data$Suburb <- as.factor(house_data$Suburb)
+house_data$Rooms <- as.factor(house_data$Rooms)
+house_data$Type <- as.factor(house_data$Type)
+
+num_suburbs <- length(levels(house_data$Suburb))
+
+levels(house_data$Suburb)
+num_suburbs
+```
+
+<!-- Report your answer for Q1 (b) below: -->
+
+there are 5 different suburbs: "Bentleigh East" "Brunswick"      "Preston"   "Reservoir"      "Richmond" 
+
+
+### Part (c)
+
+<!-- Write your code for Q1 (c) in the code chunk below: -->
+
+
+```{r Q1c}
+# here we remove the records that missed the value in column Building Area and Building Year.
+
+cleaned_data <- house_data[!is.na(house_data$BuildingArea) & !is.na(house_data$YearBuilt),]
+
+#left 657 records
+View(cleaned_data)
+
+#filtered_data for properties builded before 1980
+filtered_data_1980 <- cleaned_data[cleaned_data$YearBuilt <= 1980, ]
+
+#median building area
+median_area <- median(filtered_data_1980$BuildingArea)
+
+median_area
+
+```
+
+<!-- Report your answer for Q1 (c) below: -->
+
+The median building area for properties built in the year 1980 or before is **117**.
+
+
+### Part (d)
+
+<!-- Write your code for Q1 (d) in the code chunk below: -->
+
+
+```{r Q1d}
+
+#we use max function to extract the highest price where properties in Brunswick, and then extract the corresponding record in the data set
+
+brunswick_highest_record <- house_data[house_data$Price == max(house_data[house_data$Suburb=='Brunswick',]$Price),]
+
+#paste suburb and address to get total address
+brunswick_t_max_address <- paste(brunswick_highest_record$Address,brunswick_highest_record$Suburb,sep = " ")
+
+brunswick_t_max_address
+```
+
+<!-- Report your answer for Q1 (d) below: -->
+
+The address with the most expensive townhouse sold in the Brunswick suburb is **11 Heller St Brunswick**
+
+
+### Part (e)
+
+<!-- Write your code for Q1 (e) in the code chunk below: -->
+
+
+```{r Q1e}
+#check every record if it has missing value
+
+house_data$FullyObserved <- complete.cases(house_data)
+
+#considering True is regarded as 1 in R, so we can sum the list up and got the corresponding total number.
+
+n_missing_area <- sum(is.na(house_data$BuildingArea))
+n_missing_year <- sum(is.na(house_data$YearBuilt))
+
+#check which one have the bigger number of missing value
+col_miss <- ifelse(n_missing_area>n_missing_year,"BuildingArea","YearBuilt")
+```
+
+<!-- Report your answer for Q1 (e) below: -->
+
+BuildingArea Column has the most number of missing values
+
+### Part (f)
+
+
+<!-- Write your code for Q1 (f) in the code chunk below: -->
+
+```{r Q1f, message=FALSE, warning=FALSE}
+#load ggplot2 library
+library(ggplot2)
+
+list_q1f <- c("Bentleigh East", "Preston","Reservoir")
+filtered_data_Q1f <- house_data[house_data$Suburb %in% list_q1f,]
+
+ggplot(data = filtered_data_Q1f)+
+  geom_boxplot(mapping = aes(x= Suburb, y = Price, fill = Suburb))+
+  labs(title = "Side-by-side Boxplot of Price for Three Suburbs",
+       x = "Suburb",
+       y = "Price")+
+  theme_minimal()
+```
+
+we can easily find Preston has more outliers.
+### Part (g)
+
+
+<!-- Write your code for Q1 (g) in the code chunk below: -->
+
+```{r Q1g}
+
+#with geom_histogram to plot histogram, and fill hist with Room category.
+
+ggplot()+
+  geom_histogram(mapping = aes(x = BuildingArea, colour = Rooms,fill = Rooms),data = house_data[house_data$Rooms == 1,] , alpha = 0.5, binwidth = 10)+
+  geom_histogram(mapping = aes(x = BuildingArea, colour = Rooms,fill = Rooms), data = house_data[house_data$Rooms == 4,], alpha = 0.5, binwidth = 10)+
+  labs(title = "Building Area Distribution by Room Category",
+       x = "Building Area",
+       y = "Count")+
+  xlim(0,300)+
+  theme_minimal()
+
+```
+
+### Part (h)
+
+<!-- Write your code for Q1 (h) in the code chunk below: -->
+
+
+```{r Q1h}
+
+#calculate mean by rooms with tapply function which focus on diferrent categories
+mean_by_rooms <- tapply(house_data$BuildingArea, house_data$Rooms, mean, na.rm = TRUE)
+mean_by_rooms
+global_mean <- mean(house_data$BuildingArea,na.rm = TRUE)
+global_mean
+
+#considering ifelse() function is element-wise in R, we can directly use it:
+house_data$BuildingArea <-
+  ifelse(is.na(house_data$BuildingArea),  #check if it is na in cell
+       ifelse(is.na(mean_by_rooms[as.character(house_data$Rooms)]), # check if mean_by_rooms value is provided
+                    global_mean,  # if not provided, fill with global mean
+                    mean_by_rooms[as.character(house_data$Rooms)]), #if provided, fill with calculated number
+       house_data$BuildingArea) #if it is not na in original data set, fill with original value
+
+house_data 
+```
+
+## Question 2
+
+### Part (a)
+
+
+<!-- Write your function for Q2 (a) in the code chunk below: -->
+
+
+```{r Q2a}
+#define distance function, here we use the Euclidean distance as default formula.
+
+dist_func <- function(a, b){
+
+  return( sqrt(sum((a-b)**2) ))
+
+  }
+
+#define classify_point function which is used to judge the category of a new observation x
+
+classify_point <- function(x, training_data, k, dist_func){
+  
+  #check if k is smaller than the number of training_data
+
+  if (k >= ncol(training_data)){stop("k must smaller than the number of training_data")}
+
+  #we can apply pipe operator |> ( which is supported by R after version 4.1) to increase readibility
+  
+ x_training_index_bydistance <- training_data[-nrow(training_data),] |> #remove the last result line 
+       apply(2, function(col) dist_func(col,x)) |> #apply every column to dis_func
+          order()
+ 
+  train_head_k_result <- training_data[nrow(training_data),x_training_index_bydistance[1:k]]  #select the head k columns
+                       
+  #summarize the number of different categories
+  sum_ones <- sum(train_head_k_result == 1)
+  sum_twos <- sum(train_head_k_result == 2)
+  
+  predicted_class <- ifelse( sum_ones >= sum_twos , 
+                             # if the number of category 1 bigger than/equal to the number of category 2
+                            ifelse (sum_ones == sum_twos, # if two numbers are same
+                                    training_data[nrow(training_data),x_training_index_bydistance[k+1]], #judged by k+1 category
+                                    1), # return category 1
+                            2) #return category 2
+  
+  return(predicted_class)
+}
+
+```
+
+
+### Part (b)
+
+
+<!-- Write your function for Q2 (b) in the code chunk below: -->
+
+
+```{r Q2b}
+
+#Since we have prepared the module for a sparate obeservation, we can directly apply new data matrix with the function
+classify_data <- function(test_data, training_data, k, dist_func){
+
+  if(nrow(test_data) != nrow(training_data) - 1) {stop("test_data must have same dimensions with training data!")}
+  
+  predicted_classes <- test_data |> apply(2,function(col) classify_point(col, training_data, k, dist_func))
+  
+}
+
+```
+
+### Part (c)
+
+
+<!-- Write your code for Q2 (c) in the code chunk below: -->
+
+
+```{r Q2c}
+
+ion_train <- read.table(file = "./ion_train.txt") |> as.matrix()
+
+ion_test <- read.table(file = "./ion_test.txt") |> as.matrix()
+
+predicted_classes <- seq(1,13,1) |> sapply(function(k) classify_data(ion_test,ion_train,k, dist_func)) |> as.data.frame()
+
+predicted_classes
+```
+
+### Part (d)
+
+
+<!-- Write your function for Q2 (d) in the code chunk below: -->
+
+
+```{r Q2d}
+
+#In fact, there is a "table" command in R which can calculate the confusion matrix automatically, but we can use a loop to calculate by ourselves.
+
+calc_conf_mat <- function(predicted_classes, true_classes){
+  #check if the levels are equal in predicted_classes and true_classes
+  
+  levels_true_classes <- levels(factor(true_classes)) |> as.numeric()
+  levels_predicted_classes <- levels(factor(predicted_classes)) |> as.numeric()
+  
+  if (!setequal(levels_true_classes, levels_predicted_classes)){
+    stop("WARNNING: the two numbers of true/predicted categories are not same!!")
+  }
+  
+  #based on the number of categories, set default matrix
+  conf_mat <- matrix(data = 0, 
+                     nrow = length(levels_true_classes), 
+                     ncol = length(levels_predicted_classes),
+                     dimnames = list(Actual = levels_true_classes, Predicted = levels_predicted_classes))
+  
+  #fill matrix elements, here we use level_true to define the fill position of matrix and find corresponding element in levels_classes
+  for ( level_true in 1:length(levels_true_classes)){
+    for (level_predict in 1:length(levels_predicted_classes)){
+      conf_mat[level_true,level_predict] <- sum((predicted_classes == levels_true_classes[level_true]) & (true_classes==levels_predicted_classes[level_predict]))
+    }
+  }
+  
+  return(conf_mat)
+  
+}
+
+```
+
+
+### Part (e)
+
+
+<!-- Write your code for Q2 (e) in the code chunk below: -->
+
+
+```{r Q2e}
+View(predicted_classes)
+#add the true values for test data
+predicted_classes$Result <- c(rep(1,15),rep(2,15))
+
+  
+k_values <- seq(1, 13, 1)
+
+error_proportions <- sapply(k_values, function(k) {
+  
+  predicted <- predicted_classes[,k] 
+  true <- predicted_classes$Result
+  conf_mat <- calc_conf_mat(predicted, true)
+  
+  total <- sum(conf_mat)
+  correct <- sum(diag(conf_mat))  
+  error_rate <- (total - correct) / total
+  return(error_rate)
+})
+
+error_df <- data.frame(k = k_values, ErrorRate = error_proportions)
+
+print(error_df)
+error_df
+
+ggplot(data = error_df)+
+  geom_point(mapping = aes(x = k, y = ErrorRate, color = factor(k)))+
+  labs(title = "K-values v.s. Error Rate", 
+       x = "K value",
+       y = "Error Rate")
+
+#we can find some overfitting/underfitting in the plot: Lower values of k can overfit (low bias, high variance), while higher values can underfit (high bias, low variance). 
+```
+
+
+
+### Part (f)
+
+
+<!-- Write your code for Q2 (f) in the code chunk below: -->
+
+
+```{r Q2f}
+#define f1, f2, f3
+f1 <- function(a, b) {
+  return(sum(abs(a - b)))
+}
+
+f2 <- function(a, b) {
+  return(max(abs(a - b)))
+}
+
+f3 <- function(a, b){
+  
+  return(1 - sum(a * b)/(sqrt(sum(a^2)) * sqrt(sum(b**2))))
+  
+}
+
+func <- c(f1,f2,f3)
+
+#we only focus on k = 13
+k_13 <- 13
+
+#apply f1, f2, f3 to get accuracy separately
+accuracy <- sapply(func, function(F) {
+  
+ predicted_k13 <- classify_data(ion_test,ion_train, k_13, F)
+ true_k13 <- c(rep(1,15),rep(2,15))
+ conf_mat_k13 <- calc_conf_mat(predicted_k13, true_k13)
+ 
+ total <- sum(conf_mat_k13)
+ correct <- sum(diag(conf_mat_k13)) 
+ return(correct/total)
+})
+
+#get function with biggest number of accuracy
+accu_df <- data.frame(fun_name = c("f1", "f2", "f3"), Accuracy = accuracy)
+best_func <- accu_df[accu_df$Accuracy == max(accu_df$Accuracy),'fun_name']
+
+```
+
+<!-- Report your answer for Q2 (f) in the code chunk below: -->
+
+The best function based on calculation is ***"f1"***
+
+
+### Part (g)
+
+
+<!-- Write your code for Q2 (g) in the code chunk below: -->
+
+
+```{r Q2g}
+
+#based on previous question, the "f1" has best performance, so we can get the predicted/true labels separately.
+predicted_k13 <- classify_data(ion_test,ion_train, k_13, f1)
+true_k13 <- c(rep(1,15),rep(2,15))
+
+#prepare data for plotting
+plot_data <- data.frame(x = ion_test[6,], y = ion_test[7,], predicted = predicted_k13, actual = true_k13)
+
+ggplot(data = plot_data) +
+  geom_point(aes(x = jitter(x, factor = 0.1), 
+                 y = jitter(y, factor = 0.1), 
+                 colour = factor(actual), 
+                 shape = factor(predicted)), 
+             size = 2) +
+  labs(colour = "Actual Labels", 
+       shape = "Pedicted Labels", 
+       x = "Dimension 6",  
+       y = "Dimension 7") +
+  scale_shape_manual(values = c(16, 4)) +  # Customize the shape for predicted categories
+  theme_minimal()
+
+
+```
+
+
+### Part (h)
+
+
+<!-- Write your function for Q2 (h) in the code chunk below: -->
+
+
+```{r Q2h}
+
+classify_data2 <- function(test_data, training_data, k, dist_func){
+
+  #The last row of training_data should only contain numeric values equal to 1 or 2.
+  if( sum(training_data[nrow(training_data),] %in% c(1,2)) !=  length(training_data[nrow(training_data),])) {
+    stop("Last row of training_data should only contain numeric values equal to 1 or 2.")
+  }
+  
+  #The dimension of observations in test_data and training_data match up, i.e. the number ofrows of test_data should be 1 less than the number of rows of training_data.
+  if(nrow(test_data) != nrow(training_data) - 1) {stop("Dimensions of test_data and training_data do not agree.")}
+  
+  #The argument dist_func should be a function object.
+  if( !is.function(dist_func)) {stop("Argument dist_func should be a function object.")}
+  
+  predicted_classes <- test_data |> apply(2,function(col) classify_point(col, training_data, k, dist_func))
+  
+}
+
+```
+
+
+
+## Question 3
+
+
+### Part (a)
+
+
+<!-- Write your code for Q3 (a) in the code chunk below: -->
+
+
+```{r Q3a}
+set.seed(2024) # Do not delete this line of code. Write your answer after this line.
+
+#define parameters
+params <- list(theta = 150, n = 500, mu0 = 0, mu1 = 2, variance = 0.8)
+
+sigma <- rnorm(params$n, mean = 0, sd = sqrt(params$variance))
+
+
+x <- seq(1,500,1) |> sapply(FUN = function(i){
+  ifelse( i <= params$theta,
+        params$mu0 + sigma[i],
+        params$mu1 + sigma[i]
+  )
+}) |> as.vector()
+
+#colnames(x) <- c('x')
+
+
+y <- seq(1,500,1) |> sapply(FUN = function(j){
+  ifelse( j <= params$theta,
+          (1/params$theta) * sum(x[1:params$theta]),
+          (1/(params$n - params$theta)) * sum(x[(params$theta+1):params$n]))
+    })
+
+
+df_plot <- data.frame(index = seq(1, 500, 1), x = x, y = y)
+
+ggplot(data = df_plot, aes(x = index, y = y)) +
+  geom_line(aes(color = "Line Trend"), size = 1) +  
+  geom_vline(aes(xintercept = 150, color = "Change Point"), linetype = "dashed", size = 1) +
+  scale_color_manual(values = c("Line Trend" = "#3b5998", "Change Point" = "#ff6f61")) +  
+  labs(title = "Trend Line with Change Point",
+       x = "Index",
+       y = "Y Value",
+       color = "Legend") + 
+  theme_minimal()
+
+```
+
+
+### Part (b)
+
+
+<!-- Write your function for Q3 (b) in the code chunk below: -->
+
+
+```{r Q3b}
+
+#To achieve a time complexity of O(n), we can obtain the right_sum in the equation provided in the question by using total_sum - left_sum. At the same time, we can also use the cumsum function to simplify the function and improve its readability.
+
+CUSUM.calc <- function(x) {
+  n <- length(x)
+  
+  #calculate the cumsum for x
+  cumsum_x <- cumsum(x)
+  total_sum <- cumsum_x[n]
+  
+  #calculate the mean_left and mean_right by using element-wise property in R
+  k <- 1:(n - 1)
+  mean_left <- cumsum_x[k] / k
+  mean_right <- (total_sum - cumsum_x[k]) / (n - k)
+  
+  #get the T_value
+  T_values <- sqrt(k * (n - k) / n) * abs(mean_left - mean_right)
+  
+  return(T_values)
+}
+
+CUSUM.calc(x)
+
+```
+
+### Part (c)
+
+
+<!-- Write your function for Q3 (c) in the code chunk below: -->
+
+
+```{r Q3c}
+
+```
+
+### Part (d)
+
+
+<!-- Write your function for Q3 (d) in the code chunk below: -->
+
+
+```{r Q3d}
+
+```
+
+### Part (e)
+
+
+<!-- Write your code for Q3 (e) in the code chunk below: -->
+
+
+```{r Q3e, eval = TRUE}
+# if this code is running slowly and you want to render the file quickly to 
+# check the code in other questions, you can temporarily set eval = FALSE in
+# the chunk option above. Just remember to change it to eval = TRUE before
+# you submit the file!
+
+```
+
+### Part (f) 
+
+
+<!-- Write your function for Q3 (f) in the code chunk below: -->
+
+
+```{r Q3f}
+
+```
+
+
+### Part (g)
+
+
+<!-- Write your function for Q3 (g) in the code chunk below: -->
+
+
+```{r Q3g}
+
+```
+
+### Part (h)
+
+
+<!-- Write your code for Q3(h) in the code chunk below: -->
+
+
+```{r Q3h, fig.height = 8.5, fig.width = 8}
+
+```
+
