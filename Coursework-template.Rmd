@@ -534,22 +534,23 @@ ggplot(data = df_plot, aes(x = index, y = y)) +
 
 #To achieve a time complexity of O(n), we can obtain the right_sum in the equation provided in the question by using total_sum - left_sum. At the same time, we can also use the cumsum function to simplify the function and improve its readability.
 
-CUSUM.calc <- function(x) {
+CUSUM.calc <- function(x){
+  
   n <- length(x)
+  #left sum in equation
+  leftsum_xt <- cumsum(x)
+  total_sumx <- leftsum_xt[n]
   
-  #calculate the cumsum for x
-  cumsum_x <- cumsum(x)
-  total_sum <- cumsum_x[n]
+  #right sum in equation can be calculated by total_sumx - leftsum_xt
+  rightsum_xt <- rep(total_sumx,n) - leftsum_xt
   
-  #calculate the mean_left and mean_right by using element-wise property in R
-  k <- 1:(n - 1)
-  mean_left <- cumsum_x[k] / k
-  mean_right <- (total_sum - cumsum_x[k]) / (n - k)
+  #then calculate division
+  k <- 1:(n-1)
+  leftsum_xt <- leftsum_xt[k] / k # we only calculate k from 1 to n-1
+  rightsum_xt <- rightsum_xt[k] / (n - k) #here n will automaticaly minus each k element
+  Tk <- abs( sqrt(k * (n - k) / n) * (leftsum_xt - rightsum_xt))
   
-  #get the T_value
-  T_values <- sqrt(k * (n - k) / n) * abs(mean_left - mean_right)
-  
-  return(T_values)
+  return(Tk)
 }
 
 CUSUM.calc(x)
@@ -563,6 +564,24 @@ CUSUM.calc(x)
 
 
 ```{r Q3c}
+noise.es <- function( x ){
+  
+  n <- length(x)
+  
+  #calculate Yt
+  Yt <- (x[2:n] - x[1:n-1])/2**0.5
+  
+  median_Yt <- median(Yt)
+  
+  abs_Yt_median <- abs(Yt - median_Yt)
+  
+  #scale with 1.48 and calculate sigma.es
+  sigma.es <-  1.48 * median(abs_Yt_median)
+  
+  return(sigma.es)
+}
+
+noise.es(x)
 
 ```
 
@@ -573,6 +592,25 @@ CUSUM.calc(x)
 
 
 ```{r Q3d}
+cpt.detect <- function(x,   threshold = sqrt(2*log(length(x)))){
+  
+  x.CUSUM <- CUSUM.calc(x)
+  
+  sigma.est <- noise.es(x)
+  
+  cpt <- which.max(x.CUSUM)
+  
+  is.cpt <- sigma.est**(-1) * x.CUSUM[which.max(x.CUSUM)] >  threshold
+  
+  x.cpt <- list(x.CUSUM = x.CUSUM, 
+                sigma.est = sigma.est, 
+                cpt = cpt, 
+                is.cpt = is.cpt)
+  
+  return( x.cpt )
+}
+
+cpt.detect(x)
 
 ```
 
@@ -588,6 +626,49 @@ CUSUM.calc(x)
 # the chunk option above. Just remember to change it to eval = TRUE before
 # you submit the file!
 
+times <- seq(1,100,1)
+n <- c(100, 500, 1000, 2000, 4000)
+#define a dataframe to store all related information
+duration_df <- data.frame(n = integer(), 
+                          iteration = integer(), 
+                          elapsed_time = numeric())
+
+for(item in n) {
+  for (i in times) {
+    y <- rnorm(item, mean = 0, sd = 1)
+    tmp <- system.time(
+              cpt.detect(y)
+            )
+   #there are three return variable from system.time() - user.self, sys.self, and elapsed,
+   #considering we are only required to get one, here we choose "elapsed time", which indicates the total time
+   duration_df <- rbind(duration_df, 
+                     data.frame(
+                      n = item, 
+                      iteration = i, 
+                      elapsed_time = tmp[["elapsed"]])
+                     )
+  }
+}
+
+
+#in fact, R has aggregate function which can achieve similar target with other languages with group_by
+average_times <- aggregate(elapsed_time ~ n, data = duration_df, FUN = mean)
+
+ave_run_times <- average_times[,"elapsed_time"]
+
+ggplot(average_times)+
+  geom_line(mapping = aes(x = n, y = elapsed_time))+
+  geom_point(mapping = aes(x = n, y = elapsed_time)) +
+  labs(
+    title = "Average Running Times for Different Values of n",
+    x = "n (Data Size)",
+    y = "Average Elapsed Time (seconds)"
+  ) +
+  scale_x_continuous(
+    breaks = unique(average_times$n), #to ensure that the axis labels match up 
+    labels = unique(average_times$n)  #with the five values of n.
+  ) +
+  theme_minimal()
 ```
 
 ### Part (f) 
@@ -597,6 +678,13 @@ CUSUM.calc(x)
 
 
 ```{r Q3f}
+
+perm.test <- function(x, x.CUSUM.max, sigma.est, reps, sig.lvl){
+  
+  
+  
+  
+}
 
 ```
 
