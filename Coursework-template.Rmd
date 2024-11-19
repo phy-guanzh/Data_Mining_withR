@@ -511,10 +511,11 @@ y <- seq(1,500,1) |> sapply(FUN = function(j){
 
 df_plot <- data.frame(index = seq(1, 500, 1), x = x, y = y)
 
-ggplot(data = df_plot, aes(x = index, y = y)) +
-  geom_line(aes(color = "Line Trend"), size = 1) +  
-  geom_vline(aes(xintercept = 150, color = "Change Point"), linetype = "dashed", size = 1) +
-  scale_color_manual(values = c("Line Trend" = "#3b5998", "Change Point" = "#ff6f61")) +  
+ggplot(data = df_plot) +
+  geom_line(mapping = aes(color = "Data", x = index, y = x),linewidth = 1)+
+  geom_line(mapping = aes(color = "Line Trend",x = index, y = y), linewidth = 1) +  
+  geom_vline(aes(xintercept = 150, color = "Change Point"), linetype = "dashed", linewidth = 1) +
+  scale_color_manual(values = c("Line Trend" = "#3b5998", "Change Point" = "#ff6f61", "Data" = "#2ca02c")) +  
   labs(title = "Trend Line with Change Point",
        x = "Index",
        y = "Y Value",
@@ -542,7 +543,7 @@ CUSUM.calc <- function(x){
   total_sumx <- leftsum_xt[n]
   
   #right sum in equation can be calculated by total_sumx - leftsum_xt
-  rightsum_xt <- rep(total_sumx,n) - leftsum_xt
+  rightsum_xt <- rep(total_sumx, n) - leftsum_xt
   
   #then calculate division
   k <- 1:(n-1)
@@ -679,13 +680,33 @@ ggplot(average_times)+
 
 ```{r Q3f}
 
-perm.test <- function(x, x.CUSUM.max, sigma.est, reps, sig.lvl){
+perm.test <- function(x, x.CUSUM.max, sigma.est, reps = 199, sig.lvl = 0.05){
   
+  #define Ar Vector
+  A_r <- c(numeric(0))
+
+  for (i in 1:reps) {
+    x_tmp <- x |> sample()
+    Tk_i_max <- x_tmp |> CUSUM.calc() |>  max()
+    sigma_i <-  x_tmp |> noise.es()
+    A_r <- c(A_r, sigma_i**(-1) * Tk_i_max)
+  }
   
-  
-  
+  #calculate perm.c and p.val
+   perm.c <- quantile(A_r, probs = 1 - sig.lvl) |> as.numeric()
+   p.val <- sum(A_r >= sigma.est**(-1) * x.CUSUM.max) / length(A_r)
+   
+   x.perm <- list(perm.c = perm.c, p.val = p.val)
+   
+   return(x.perm)
+   
 }
 
+x.perm <- perm.test(x,x |> CUSUM.calc() |> max(), x |> noise.es())
+
+x.perm$perm.c
+
+x.perm$p.val
 ```
 
 
@@ -697,6 +718,42 @@ perm.test <- function(x, x.CUSUM.max, sigma.est, reps, sig.lvl){
 
 ```{r Q3g}
 
+cpt.detect2 <- function(x, threshold = sqrt(2*log(length(x))), threshold.type, reps = 199, sig.lvl = 0.05){
+  
+  #calculate threshol/pvalue based on threshold.type
+  x.CUSUM <- CUSUM.calc(x)
+  sigma.est <- noise.es(x)
+  
+  if(threshold.type == "perm") {
+    
+    x.CUSUM.max <- x.CUSUM |> max()
+    x.perm <- perm.test(x, x.CUSUM.max, sigma.est, reps, sig.lvl)
+    threshold <- x.perm$perm.c
+    p.val <- x.perm$p.val
+    
+  }
+  
+  cpt <- which.max(x.CUSUM)
+  is.cpt <- (sigma.est**(-1) * x.CUSUM[which.max(x.CUSUM)]) >  threshold
+  
+  x.cpt <- list(
+              threshold.type = threshold.type,
+              threshold = threshold,
+              x.CUSUM = x.CUSUM, 
+              sigma.est = sigma.est, 
+              cpt = cpt, 
+              is.cpt = is.cpt
+              )
+
+  if (threshold.type == "perm") {
+    x.cpt$p.val <- p.val
+  }
+
+  
+  return( x.cpt )
+}
+
+
 ```
 
 ### Part (h)
@@ -706,6 +763,48 @@ perm.test <- function(x, x.CUSUM.max, sigma.est, reps, sig.lvl){
 
 
 ```{r Q3h, fig.height = 8.5, fig.width = 8}
+
+nile.data <- read.table(file = "nile_volume.txt", header = TRUE)
+
+nile.cpt <- cpt.detect2(nile.data$volume,threshold.type = "perm", reps = 499, sig.lvl = 0.01)
+
+n <- nrow(nile.data)
+
+mu_t <- seq(1,n,1) |> sapply(FUN = function(j){
+  ifelse( j <= nile.cpt$cpt,
+          (1/nile.cpt$cpt) * sum(nile.data$volume[1:nile.cpt$cpt]),
+          (1/(n - nile.cpt$cpt)) * sum(nile.data$volume[(nile.cpt$cpt+1):n]))
+    })
+
+nileplot1_df <- data.frame(index = seq(1, nrow(nile.data), 1), x = nile.data$volume, y = mu_t)
+
+
+nileplot2_df <- data.frame(
+                    index = seq(1, n - 1, 1),   
+                    x = CUSUM.calc(nile.data$volume)/noise.es(nile.data$volume))
+
+
+#considering that ggarrange() function will need library(ggpubr), so here we use inner R plot functions
+par(mfrow = c(2, 1))
+
+# Plot 1
+plot(nileplot1_df$index, nileplot1_df$x, type = "l", col = "#2ca02c", lwd = 2,
+     main = "Trend Line with Change Point",
+     xlab = "Index", ylab = "Y Value")
+lines(nileplot1_df$index, nileplot1_df$y, col = "#3b5998", lwd = 2)
+abline(v = nile.cpt$cpt, col = "#ff6f61", lty = 2, lwd = 2)
+legend("topright", legend = c("Data", "Line Trend", "Change Point"),
+       col = c("#2ca02c", "#3b5998", "#ff6f61"), lty = c(1, 1, 2), lwd = 2, bty = "n")
+
+# Plot 2
+plot(nileplot2_df$index, nileplot2_df$x, type = "l", col = "#2ca02c", lwd = 2,
+     main = "Trend Line with Change Point",
+     xlab = "Index", ylab = "T(k) Values")
+abline(v = nile.cpt$cpt, col = "#ff6f61", lty = 2, lwd = 2)
+abline(h = sqrt(2 * log(nrow(nileplot2_df))), col = "#3b5998", lty = 2, lwd = 2)
+abline(h = nile.cpt$threshold, col = "#ffcc00", lty = 2, lwd = 2)
+legend("topright", legend = c("Data", "Change Point", "log(2n)", "Threshold"),
+       col = c("#2ca02c", "#ff6f61", "#3b5998", "#ffcc00"), lty = c(1, 2, 2, 2), lwd = 2, bty = "n")
 
 ```
 
